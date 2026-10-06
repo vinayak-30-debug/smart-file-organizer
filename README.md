@@ -17,9 +17,9 @@ This version implements those points and also includes a simple Tkinter interfac
 
 ## Files
 
-- `main.py`: Tkinter user interface.
-- `organizer.py`: File categorization and moving logic.
-- `settings.py`: Saved preferences for directory, output folder, recursive mode, and custom categories.
+- `main.py`: Tkinter user interface with preview, organize, undo, and preferences.
+- `organizer.py`: File categorization, SHA-256 duplicate detection, and rollback/undo logic.
+- `settings.py`: Saved preferences for directory, output folder, recursive mode, duplicate detection, and custom categories.
 - `USER_GUIDE.md`: User-facing instructions.
 - `test_organizer.py`: Unit tests for the backend organizer logic.
 
@@ -47,11 +47,12 @@ Choose a folder, then click **Organize Files**.
 - Improved preview accuracy when duplicate destination file names already exist.
 - Continued code refinement with reusable GUI helper methods.
 
-## Safety
+## Safety & Collision Handling
 
-If a file with the same name already exists in a category folder, the program keeps both files by adding a number to the new file name.
+- If a file with the same name already exists in a category folder, the program keeps both files by adding a number to the new file name.
+- If identical file content is detected, it is safely isolated into the `Duplicates` category.
 
-## Week 4 Final Updates
+## Week 4 Updates
 
 - Added custom category support so users can define their own sorting rules.
 - Added saved preferences using `settings.json`.
@@ -59,7 +60,13 @@ If a file with the same name already exists in a category folder, the program ke
 - Added operation logging with timestamps in `organizer.log`.
 - Added a user guide and unit tests.
 
-## Final Testing
+## Advanced Enhancements
+
+- **Content-Based Duplicate Detection**: Uses chunked SHA-256 hashing to find identical file contents regardless of filename, isolating duplicates into a dedicated `Duplicates` directory.
+- **One-Click Undo / Rollback Engine**: Maintains session history in `.organizer_history.json`. Clicking **Undo** restores files back to their exact original locations and cleans up empty category folders.
+- **Audit Logging**: Logs all moves, duplicates, and rollbacks with exact timestamps.
+
+## Testing
 
 Run:
 

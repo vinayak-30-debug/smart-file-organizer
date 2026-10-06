@@ -12,6 +12,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "output_folder": "Organized_Files",
     "recursive": False,
     "custom_categories": {},
+    "detect_duplicates": True,
 }
 
 

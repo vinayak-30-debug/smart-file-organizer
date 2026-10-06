@@ -6,8 +6,13 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from organizer import MoveResult
-from organizer import organize_directory, scan_directory
+from organizer import (
+    MoveResult,
+    can_undo,
+    organize_directory,
+    scan_directory,
+    undo_last_operation,
+)
 from settings import load_settings, normalize_custom_categories, save_settings
 
 
@@ -19,13 +24,16 @@ class FileOrganizerApp(tk.Tk):
         super().__init__()
 
         self.title("File Organizer")
-        self.geometry("860x620")
-        self.minsize(760, 520)
+        self.geometry("900x640")
+        self.minsize(780, 520)
 
         self.settings = load_settings()
         self.directory_var = tk.StringVar()
         self.output_folder_var = tk.StringVar(value=self.settings["output_folder"])
         self.recursive_var = tk.BooleanVar(value=self.settings["recursive"])
+        self.detect_duplicates_var = tk.BooleanVar(
+            value=self.settings.get("detect_duplicates", True)
+        )
         self.category_var = tk.StringVar()
         self.extensions_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Choose a directory to organize.")
@@ -39,6 +47,7 @@ class FileOrganizerApp(tk.Tk):
             self.status_var.set("Loaded saved directory preference.")
 
         self._build_ui()
+        self.refresh_undo_button_state()
 
     def _build_ui(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -82,12 +91,21 @@ class FileOrganizerApp(tk.Tk):
         organize_button.grid(row=0, column=3, padx=(0, 8))
         self.action_buttons.append(organize_button)
 
+        self.undo_button = ttk.Button(
+            input_frame,
+            text="Undo",
+            command=self.undo_files,
+            state=tk.DISABLED,
+        )
+        self.undo_button.grid(row=0, column=4, padx=(0, 8))
+        self.action_buttons.append(self.undo_button)
+
         clear_button = ttk.Button(
             input_frame,
             text="Clear",
             command=self.clear_selection,
         )
-        clear_button.grid(row=0, column=4)
+        clear_button.grid(row=0, column=5)
         self.action_buttons.append(clear_button)
 
         options_frame = ttk.LabelFrame(self, text="Preferences")
@@ -113,6 +131,13 @@ class FileOrganizerApp(tk.Tk):
             variable=self.recursive_var,
             command=self.save_current_settings,
         ).grid(row=0, column=2, padx=12, pady=8)
+
+        ttk.Checkbutton(
+            options_frame,
+            text="Detect duplicates (SHA-256)",
+            variable=self.detect_duplicates_var,
+            command=self.save_current_settings,
+        ).grid(row=0, column=3, padx=12, pady=8)
 
         custom_frame = ttk.LabelFrame(self, text="Custom Category")
         custom_frame.grid(row=3, column=0, sticky="ew", padx=18, pady=8)
@@ -175,12 +200,22 @@ class FileOrganizerApp(tk.Tk):
             self.directory_var.set(selected_directory)
             self.save_current_settings()
             self.status_var.set("Directory selected. Ready to organize.")
+            self.refresh_undo_button_state()
 
     def clear_selection(self) -> None:
         self.directory_var.set("")
         self.result_box.delete("1.0", tk.END)
         self.save_current_settings()
         self.status_var.set("Selection cleared. Choose a directory to organize.")
+        self.refresh_undo_button_state()
+
+    def refresh_undo_button_state(self) -> None:
+        directory = self.directory_var.get().strip()
+        output_folder = self.output_folder_var.get().strip() or "Organized_Files"
+        if directory and can_undo(directory, output_folder):
+            self.undo_button.configure(state=tk.NORMAL)
+        else:
+            self.undo_button.configure(state=tk.DISABLED)
 
     def add_custom_rule(self) -> None:
         category = self.category_var.get().strip()
@@ -228,6 +263,7 @@ class FileOrganizerApp(tk.Tk):
                 self.custom_categories,
                 self.output_folder_var.get().strip(),
                 self.recursive_var.get(),
+                detect_duplicates=self.detect_duplicates_var.get(),
             ),
             self.show_preview_results,
             "Scanning directory...",
@@ -241,7 +277,9 @@ class FileOrganizerApp(tk.Tk):
             return
 
         self.write_results("Preview summary", planned_files)
-        self.status_var.set(f"Found {len(planned_files)} file(s) ready to organize.")
+        dup_count = sum(1 for r in planned_files if r.is_duplicate)
+        dup_text = f" ({dup_count} duplicate(s) flagged)" if dup_count > 0 else ""
+        self.status_var.set(f"Found {len(planned_files)} file(s) ready to organize{dup_text}.")
 
     def organize_files(self) -> None:
         directory = self.directory_var.get().strip()
@@ -257,6 +295,7 @@ class FileOrganizerApp(tk.Tk):
                 self.custom_categories,
                 self.output_folder_var.get().strip(),
                 self.recursive_var.get(),
+                detect_duplicates=self.detect_duplicates_var.get(),
             ),
             self.show_organize_results,
             "Organizing files...",
@@ -264,14 +303,73 @@ class FileOrganizerApp(tk.Tk):
         )
 
     def show_organize_results(self, moved_files: list[MoveResult]) -> None:
+        self.refresh_undo_button_state()
         if not moved_files:
             self.result_box.insert(tk.END, "No files found to organize.\n")
             self.status_var.set("No files were moved.")
             return
 
         self.write_results("Organized files", moved_files)
-        self.status_var.set(f"Organized {len(moved_files)} file(s) successfully.")
-        messagebox.showinfo("Done", f"Organized {len(moved_files)} file(s).")
+        dup_count = sum(1 for r in moved_files if r.is_duplicate)
+        dup_text = f" (including {dup_count} duplicate(s) isolated)" if dup_count > 0 else ""
+        self.status_var.set(f"Organized {len(moved_files)} file(s) successfully{dup_text}.")
+        messagebox.showinfo("Done", f"Organized {len(moved_files)} file(s){dup_text}.\nYou can click Undo to revert anytime.")
+
+    def undo_files(self) -> None:
+        directory = self.directory_var.get().strip()
+        if not directory:
+            messagebox.showwarning("Directory Required", "Please choose a directory first.")
+            return
+
+        output_folder = self.output_folder_var.get().strip() or "Organized_Files"
+        if not can_undo(directory, output_folder):
+            messagebox.showinfo("Undo", "No previous organization operations found to undo.")
+            return
+
+        confirmed = messagebox.askyesno(
+            "Confirm Undo",
+            "Are you sure you want to restore the last batch of organized files back to their original locations?",
+        )
+        if not confirmed:
+            return
+
+        self.result_box.delete("1.0", tk.END)
+        self.run_background_task(
+            lambda: undo_last_operation(
+                directory,
+                output_folder,
+            ),
+            self.show_undo_results,
+            "Undoing last operation...",
+            "Could not undo the last operation.",
+        )
+
+    def show_undo_results(self, restored_files: list[MoveResult]) -> None:
+        self.refresh_undo_button_state()
+        if not restored_files:
+            self.result_box.insert(tk.END, "No files needed to be restored.\n")
+            self.status_var.set("No files restored.")
+            return
+
+        self.result_box.insert(
+            tk.END,
+            f"Undo complete! Restored {len(restored_files)} file(s) back to original locations:\n\n",
+        )
+        for result in restored_files[:DISPLAY_LIMIT]:
+            self.result_box.insert(
+                tk.END,
+                f"Restored: {result.source.name} -> {result.destination}\n",
+            )
+
+        hidden_count = len(restored_files) - DISPLAY_LIMIT
+        if hidden_count > 0:
+            self.result_box.insert(
+                tk.END,
+                f"\nShowing first {DISPLAY_LIMIT} file(s). {hidden_count} more file(s) restored.\n",
+            )
+
+        self.status_var.set(f"Successfully restored {len(restored_files)} file(s).")
+        messagebox.showinfo("Undo Complete", f"Restored {len(restored_files)} file(s) successfully.")
 
     def write_results(self, title: str, results: list[MoveResult]) -> None:
         category_counts = Counter(result.category for result in results)
@@ -280,11 +378,19 @@ class FileOrganizerApp(tk.Tk):
         for category, count in sorted(category_counts.items()):
             self.result_box.insert(tk.END, f"- {category}: {count} file(s)\n")
 
-        self.result_box.insert(tk.END, "\nFiles:\n")
-        for result in results[:DISPLAY_LIMIT]:
+        duplicates = [r for r in results if r.is_duplicate]
+        if duplicates:
             self.result_box.insert(
                 tk.END,
-                f"{result.source.name} -> {self.format_destination(result)}\n",
+                f"\nDuplicate files detected: {len(duplicates)} file(s) (routed to 'Duplicates')\n",
+            )
+
+        self.result_box.insert(tk.END, "\nFiles:\n")
+        for result in results[:DISPLAY_LIMIT]:
+            dup_tag = " [DUPLICATE]" if result.is_duplicate else ""
+            self.result_box.insert(
+                tk.END,
+                f"{result.source.name} -> {self.format_destination(result)}{dup_tag}\n",
             )
 
         hidden_count = len(results) - DISPLAY_LIMIT
@@ -331,6 +437,10 @@ class FileOrganizerApp(tk.Tk):
         for button in self.action_buttons:
             button.configure(state=state)
 
+        # Ensure Undo button respects can_undo state when returning to unbusy
+        if not is_busy:
+            self.refresh_undo_button_state()
+
         if is_busy:
             self.progress.grid(row=5, column=0, sticky="ew", padx=18, pady=(4, 0))
             self.progress.start(10)
@@ -353,6 +463,7 @@ class FileOrganizerApp(tk.Tk):
                 "last_directory": self.directory_var.get().strip(),
                 "output_folder": self.output_folder_var.get().strip() or "Organized_Files",
                 "recursive": self.recursive_var.get(),
+                "detect_duplicates": self.detect_duplicates_var.get(),
                 "custom_categories": self.custom_categories,
             }
         )
