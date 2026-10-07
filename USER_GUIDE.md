@@ -1,8 +1,16 @@
 # File Organizer User Guide
 
-## Start the App
+### Option 1: Standalone Windows App (.exe)
 
-Run:
+Simply double-click:
+
+```text
+dist/FileOrganizer.exe
+```
+
+*(No Python installation required)*
+
+### Option 2: Run with Python
 
 ```bash
 python main.py

@@ -25,6 +25,10 @@ This version implements those points and also includes a simple Tkinter interfac
 
 ## How to Run
 
+### Option 1: Standalone Windows App (.exe)
+Double-click `dist/FileOrganizer.exe` (no Python needed).
+
+### Option 2: Run via Python
 ```bash
 python main.py
 ```
@@ -73,3 +77,14 @@ Run:
 ```bash
 python -m unittest test_organizer.py
 ```
+
+## Building Standalone Executable (.exe)
+
+To bundle the application into a single standalone `.exe` with the embedded icon:
+
+```bash
+pyinstaller --noconsole --onefile --icon="app_icon.ico" --add-data="app_icon.ico;." --name="FileOrganizer" --clean main.py
+```
+
+The resulting executable will be generated inside the `dist/` directory.
+

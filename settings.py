@@ -5,7 +5,19 @@ from pathlib import Path
 from typing import Any
 
 
-SETTINGS_FILE = Path(__file__).with_name("settings.json")
+import sys
+
+
+def get_settings_file() -> Path:
+    base_dir = (
+        Path(sys.executable).parent
+        if getattr(sys, "frozen", False)
+        else Path(__file__).resolve().parent
+    )
+    return base_dir / "settings.json"
+
+
+SETTINGS_FILE = get_settings_file()
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "last_directory": "",
@@ -17,11 +29,12 @@ DEFAULT_SETTINGS: dict[str, Any] = {
 
 
 def load_settings() -> dict[str, Any]:
-    if not SETTINGS_FILE.exists():
+    settings_file = get_settings_file()
+    if not settings_file.exists():
         return DEFAULT_SETTINGS.copy()
 
     try:
-        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        data = json.loads(settings_file.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return DEFAULT_SETTINGS.copy()
 
@@ -34,12 +47,13 @@ def load_settings() -> dict[str, Any]:
 
 
 def save_settings(settings: dict[str, Any]) -> None:
+    settings_file = get_settings_file()
     settings_to_save = DEFAULT_SETTINGS.copy()
     settings_to_save.update(settings)
     settings_to_save["custom_categories"] = normalize_custom_categories(
         settings_to_save.get("custom_categories", {})
     )
-    SETTINGS_FILE.write_text(
+    settings_file.write_text(
         json.dumps(settings_to_save, indent=2, sort_keys=True),
         encoding="utf-8",
     )

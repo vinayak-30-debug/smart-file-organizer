@@ -9,3 +9,6 @@ venv/
 .env
 *.log
 .organizer_history.json
+build/
+dist/
+*.spec

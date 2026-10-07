@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Callable
+from pathlib import Path
+import sys
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -26,6 +28,16 @@ class FileOrganizerApp(tk.Tk):
         self.title("File Organizer")
         self.geometry("900x640")
         self.minsize(780, 520)
+
+        icon_path = (
+            Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+            / "app_icon.ico"
+        )
+        if icon_path.exists():
+            try:
+                self.iconbitmap(str(icon_path))
+            except Exception:
+                pass
 
         self.settings = load_settings()
         self.directory_var = tk.StringVar()
