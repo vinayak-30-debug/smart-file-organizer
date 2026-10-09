@@ -67,6 +67,7 @@ Choose a folder, then click **Organize Files**.
 ## Advanced Enhancements
 
 - **Content-Based Duplicate Detection**: Uses chunked SHA-256 hashing to find identical file contents regardless of filename, isolating duplicates into a dedicated `Duplicates` directory.
+- **Date-Based Subfolder Grouping**: Hierarchically organizes files into Year/Month subfolders (e.g. `Images/2026/10/`) based on modification timestamps.
 - **One-Click Undo / Rollback Engine**: Maintains session history in `.organizer_history.json`. Clicking **Undo** restores files back to their exact original locations and cleans up empty category folders.
 - **Audit Logging**: Logs all moves, duplicates, and rollbacks with exact timestamps.
 

@@ -103,6 +103,64 @@ class OrganizerTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 undo_last_operation(root)
 
+    def test_organize_with_date_grouping(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            photo = root / "vacation.png"
+            photo.write_text("photo data", encoding="utf-8")
+
+            # Fixed mtime: 2024-05-15 12:00:00
+            target_time = 1715774400.0  # May 15, 2024
+            import os
+            os.utime(str(photo), (target_time, target_time))
+
+            # Preview test
+            preview = scan_directory(root, group_by_date=True)
+            self.assertEqual(len(preview), 1)
+            expected_dest = root / "Organized_Files" / "Images" / "2024" / "05" / "vacation.png"
+            self.assertEqual(preview[0].destination, expected_dest)
+
+            # Move test
+            moved = organize_directory(root, group_by_date=True, enable_logging=False, enable_history=True)
+            self.assertEqual(len(moved), 1)
+            self.assertTrue(expected_dest.exists())
+            self.assertFalse(photo.exists())
+
+            # Undo test
+            restored = undo_last_operation(root, enable_logging=False)
+            self.assertEqual(len(restored), 1)
+            self.assertTrue(photo.exists())
+            self.assertFalse(expected_dest.exists())
+            # Date subfolders should be removed
+            self.assertFalse((root / "Organized_Files" / "Images" / "2024").exists())
+            self.assertFalse((root / "Organized_Files" / "Images").exists())
+
+    def test_date_grouping_with_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            file1 = root / "original.txt"
+            file2 = root / "duplicate.txt"
+            file1.write_text("same content", encoding="utf-8")
+            file2.write_text("same content", encoding="utf-8")
+
+            target_time = 1715774400.0  # May 15, 2024
+            import os
+            os.utime(str(file1), (target_time, target_time))
+            os.utime(str(file2), (target_time, target_time))
+
+            moved = organize_directory(
+                root,
+                detect_duplicates=True,
+                group_by_date=True,
+                enable_logging=False,
+            )
+            self.assertEqual(len(moved), 2)
+            dup_results = [r for r in moved if r.is_duplicate]
+            self.assertEqual(len(dup_results), 1)
+            expected_dup_dir = root / "Organized_Files" / "Duplicates" / "2024" / "05"
+            self.assertEqual(dup_results[0].destination.parent, expected_dup_dir)
+            self.assertTrue(dup_results[0].destination.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

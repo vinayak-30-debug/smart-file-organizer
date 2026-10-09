@@ -241,12 +241,24 @@ def iter_organizable_files(
         yield item
 
 
+def get_file_date_subfolder(file_path: Path) -> Path:
+    """Return relative subfolder Path('YYYY', 'MM') based on file modification timestamp."""
+    try:
+        mtime = file_path.stat().st_mtime
+        dt = datetime.fromtimestamp(mtime)
+        return Path(dt.strftime("%Y")) / dt.strftime("%m")
+    except (OSError, OverflowError, ValueError):
+        dt = datetime.now()
+        return Path(dt.strftime("%Y")) / dt.strftime("%m")
+
+
 def scan_directory(
     directory: str | Path,
     custom_categories: dict[str, Iterable[str]] | None = None,
     output_folder: str = ORGANIZED_FOLDER,
     recursive: bool = False,
     detect_duplicates: bool = True,
+    group_by_date: bool = False,
 ) -> list[MoveResult]:
     """Return the files that can be organized without moving them."""
     target_dir = validate_directory(directory)
@@ -272,7 +284,13 @@ def scan_directory(
         else:
             category = get_category(item, custom_categories)
 
-        destination = unique_destination(organized_root / category / item.name)
+        if group_by_date:
+            date_folder = get_file_date_subfolder(item)
+            destination_dir = organized_root / category / date_folder
+        else:
+            destination_dir = organized_root / category
+
+        destination = unique_destination(destination_dir / item.name)
         planned_files.append(
             MoveResult(
                 source=item,
@@ -292,6 +310,7 @@ def organize_directory(
     output_folder: str = ORGANIZED_FOLDER,
     recursive: bool = False,
     detect_duplicates: bool = True,
+    group_by_date: bool = False,
     enable_logging: bool = True,
     enable_history: bool = True,
 ) -> list[MoveResult]:
@@ -319,7 +338,12 @@ def organize_directory(
         else:
             category = get_category(item, custom_categories)
 
-        category_folder = organized_root / category
+        if group_by_date:
+            date_folder = get_file_date_subfolder(item)
+            category_folder = organized_root / category / date_folder
+        else:
+            category_folder = organized_root / category
+
         category_folder.mkdir(parents=True, exist_ok=True)
 
         destination = unique_destination(category_folder / item.name)

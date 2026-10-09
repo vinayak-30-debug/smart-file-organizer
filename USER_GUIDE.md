@@ -30,6 +30,7 @@ Files are moved into the selected output folder. By default, this is `Organized_
 - **Output folder**: Change the parent folder where organized files are stored.
 - **Include subfolders**: Also scan files inside subdirectories.
 - **Detect duplicates (SHA-256)**: When checked, identical files (matching content hash) are isolated into a `Duplicates` folder to keep your main categories clean.
+- **Group by Date (Year/Month)**: When checked, organizes files into hierarchical Year/Month subfolders (e.g., `Organized_Files/Images/2026/10/photo.jpg`) based on file timestamps.
 - **Custom Category**: Add your own category name and extensions.
 
 Example:

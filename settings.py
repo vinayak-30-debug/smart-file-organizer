@@ -25,6 +25,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "recursive": False,
     "custom_categories": {},
     "detect_duplicates": True,
+    "group_by_date": False,
 }
 
 

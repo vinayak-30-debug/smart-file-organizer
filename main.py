@@ -46,6 +46,9 @@ class FileOrganizerApp(tk.Tk):
         self.detect_duplicates_var = tk.BooleanVar(
             value=self.settings.get("detect_duplicates", True)
         )
+        self.group_by_date_var = tk.BooleanVar(
+            value=self.settings.get("group_by_date", False)
+        )
         self.category_var = tk.StringVar()
         self.extensions_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Choose a directory to organize.")
@@ -150,6 +153,13 @@ class FileOrganizerApp(tk.Tk):
             variable=self.detect_duplicates_var,
             command=self.save_current_settings,
         ).grid(row=0, column=3, padx=12, pady=8)
+
+        ttk.Checkbutton(
+            options_frame,
+            text="Group by Date (Year/Month)",
+            variable=self.group_by_date_var,
+            command=self.save_current_settings,
+        ).grid(row=0, column=4, padx=12, pady=8)
 
         custom_frame = ttk.LabelFrame(self, text="Custom Category")
         custom_frame.grid(row=3, column=0, sticky="ew", padx=18, pady=8)
@@ -276,6 +286,7 @@ class FileOrganizerApp(tk.Tk):
                 self.output_folder_var.get().strip(),
                 self.recursive_var.get(),
                 detect_duplicates=self.detect_duplicates_var.get(),
+                group_by_date=self.group_by_date_var.get(),
             ),
             self.show_preview_results,
             "Scanning directory...",
@@ -308,6 +319,7 @@ class FileOrganizerApp(tk.Tk):
                 self.output_folder_var.get().strip(),
                 self.recursive_var.get(),
                 detect_duplicates=self.detect_duplicates_var.get(),
+                group_by_date=self.group_by_date_var.get(),
             ),
             self.show_organize_results,
             "Organizing files...",
@@ -464,6 +476,13 @@ class FileOrganizerApp(tk.Tk):
             self.status_var.set(message)
 
     def format_destination(self, result: MoveResult) -> str:
+        directory = self.directory_var.get().strip()
+        if directory:
+            try:
+                rel = result.destination.relative_to(Path(directory).resolve())
+                return str(rel).replace("\\", "/")
+            except ValueError:
+                pass
         parts = result.destination.parts
         if len(parts) >= 3:
             return "/".join(parts[-3:])
@@ -476,6 +495,7 @@ class FileOrganizerApp(tk.Tk):
                 "output_folder": self.output_folder_var.get().strip() or "Organized_Files",
                 "recursive": self.recursive_var.get(),
                 "detect_duplicates": self.detect_duplicates_var.get(),
+                "group_by_date": self.group_by_date_var.get(),
                 "custom_categories": self.custom_categories,
             }
         )
