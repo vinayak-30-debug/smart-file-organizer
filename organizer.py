@@ -14,6 +14,31 @@ ORGANIZED_FOLDER = "Organized_Files"
 DEFAULT_CATEGORY = "Others"
 DUPLICATES_CATEGORY = "Duplicates"
 HISTORY_FILE = ".organizer_history.json"
+IGNORED_SYSTEM_FILES: set[str] = {
+    "desktop.ini",
+    "thumbs.db",
+    ".ds_store",
+    "organizer.log",
+    HISTORY_FILE.lower(),
+}
+
+
+def is_system_or_hidden(file_path: Path) -> bool:
+    """Return True if the file is a system, metadata, or hidden file."""
+    name_lower = file_path.name.lower()
+    if name_lower in IGNORED_SYSTEM_FILES:
+        return True
+    if name_lower.startswith("."):
+        return True
+    if os.name == "nt":
+        try:
+            import ctypes
+            attrs = ctypes.windll.kernel32.GetFileAttributesW(str(file_path))
+            if attrs != -1 and (attrs & 2):  # FILE_ATTRIBUTE_HIDDEN = 0x2
+                return True
+        except Exception:
+            pass
+    return False
 
 FILE_CATEGORIES: dict[str, set[str]] = {
     "Images": {
@@ -130,7 +155,7 @@ def index_existing_organized_hashes(organized_root: Path) -> dict[str, Path]:
         if not item.is_file():
             continue
         # Skip system, log, and history files
-        if item.name in ("organizer.log", HISTORY_FILE):
+        if is_system_or_hidden(item):
             continue
         h = compute_file_hash(item)
         if h:
@@ -230,6 +255,7 @@ def iter_organizable_files(
     target_dir: Path,
     organized_root: Path,
     recursive: bool = False,
+    ignore_hidden: bool = True,
 ) -> Iterable[Path]:
     candidates = target_dir.rglob("*") if recursive else target_dir.iterdir()
 
@@ -237,6 +263,8 @@ def iter_organizable_files(
         if not item.is_file():
             continue
         if item.is_relative_to(organized_root):
+            continue
+        if ignore_hidden and is_system_or_hidden(item):
             continue
         yield item
 
@@ -259,6 +287,7 @@ def scan_directory(
     recursive: bool = False,
     detect_duplicates: bool = True,
     group_by_date: bool = False,
+    ignore_hidden: bool = True,
 ) -> list[MoveResult]:
     """Return the files that can be organized without moving them."""
     target_dir = validate_directory(directory)
@@ -269,7 +298,9 @@ def scan_directory(
     if detect_duplicates:
         seen_hashes.update(index_existing_organized_hashes(organized_root))
 
-    for item in iter_organizable_files(target_dir, organized_root, recursive):
+    for item in iter_organizable_files(
+        target_dir, organized_root, recursive, ignore_hidden=ignore_hidden
+    ):
         file_hash = compute_file_hash(item) if detect_duplicates else ""
         is_duplicate = False
 
@@ -311,6 +342,7 @@ def organize_directory(
     recursive: bool = False,
     detect_duplicates: bool = True,
     group_by_date: bool = False,
+    ignore_hidden: bool = True,
     enable_logging: bool = True,
     enable_history: bool = True,
 ) -> list[MoveResult]:
@@ -323,7 +355,9 @@ def organize_directory(
     if detect_duplicates:
         seen_hashes.update(index_existing_organized_hashes(organized_root))
 
-    for item in iter_organizable_files(target_dir, organized_root, recursive):
+    for item in iter_organizable_files(
+        target_dir, organized_root, recursive, ignore_hidden=ignore_hidden
+    ):
         file_hash = compute_file_hash(item) if detect_duplicates else ""
         is_duplicate = False
 

@@ -26,6 +26,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "custom_categories": {},
     "detect_duplicates": True,
     "group_by_date": False,
+    "ignore_hidden": True,
 }
 
 

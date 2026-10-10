@@ -7,6 +7,9 @@
       ".html"
     ]
   },
+  "detect_duplicates": true,
+  "group_by_date": false,
+  "ignore_hidden": true,
   "last_directory": "C:/Users/Vinayak/Desktop",
   "output_folder": "Organized_Files",
   "recursive": true

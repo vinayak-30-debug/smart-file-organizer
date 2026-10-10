@@ -6,6 +6,7 @@ from pathlib import Path
 
 from organizer import (
     can_undo,
+    is_system_or_hidden,
     organize_directory,
     scan_directory,
     undo_last_operation,
@@ -160,6 +161,50 @@ class OrganizerTests(unittest.TestCase):
             expected_dup_dir = root / "Organized_Files" / "Duplicates" / "2024" / "05"
             self.assertEqual(dup_results[0].destination.parent, expected_dup_dir)
             self.assertTrue(dup_results[0].destination.exists())
+
+    def test_is_system_or_hidden(self) -> None:
+        self.assertTrue(is_system_or_hidden(Path("desktop.ini")))
+        self.assertTrue(is_system_or_hidden(Path("Thumbs.db")))
+        self.assertTrue(is_system_or_hidden(Path(".DS_Store")))
+        self.assertTrue(is_system_or_hidden(Path(".gitignore")))
+        self.assertTrue(is_system_or_hidden(Path(".organizer_history.json")))
+        self.assertTrue(is_system_or_hidden(Path("organizer.log")))
+        self.assertFalse(is_system_or_hidden(Path("presentation.pptx")))
+        self.assertFalse(is_system_or_hidden(Path("song.mp3")))
+
+    def test_ignores_system_and_hidden_files_during_organize(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            sys_file1 = root / "desktop.ini"
+            sys_file2 = root / "thumbs.db"
+            hidden_file = root / ".env"
+            regular_file = root / "invoice.pdf"
+
+            sys_file1.write_text("[.ShellClassInfo]", encoding="utf-8")
+            sys_file2.write_text("cache", encoding="utf-8")
+            hidden_file.write_text("SECRET=123", encoding="utf-8")
+            regular_file.write_text("Invoice data", encoding="utf-8")
+
+            # Preview ignores system and hidden files by default
+            preview = scan_directory(root, ignore_hidden=True)
+            self.assertEqual(len(preview), 1)
+            self.assertEqual(preview[0].source.name, "invoice.pdf")
+
+            # Organize ignores system and hidden files by default
+            moved = organize_directory(root, ignore_hidden=True, enable_logging=False)
+            self.assertEqual(len(moved), 1)
+            self.assertEqual(moved[0].source.name, "invoice.pdf")
+
+            # Verify system/hidden files were untouched in the root directory
+            self.assertTrue(sys_file1.exists())
+            self.assertTrue(sys_file2.exists())
+            self.assertTrue(hidden_file.exists())
+            self.assertFalse(regular_file.exists())
+            self.assertTrue((root / "Organized_Files" / "Documents" / "invoice.pdf").exists())
+
+            # Verify that if ignore_hidden=False, system/hidden files are included
+            scan_all = scan_directory(root, ignore_hidden=False)
+            self.assertEqual(len(scan_all), 3)
 
 
 if __name__ == "__main__":

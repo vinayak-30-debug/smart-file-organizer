@@ -22,6 +22,7 @@ python main.py
 2. Click **Preview** to see where files will be moved.
 3. Click **Organize Files** to move files into category folders.
 4. If you ever make a mistake or want to revert, click **Undo** to restore all files back to their exact original locations.
+5. Click **Open Folder** anytime to instantly open the organized directory in Windows Explorer.
 
 Files are moved into the selected output folder. By default, this is `Organized_Files`.
 
@@ -31,6 +32,7 @@ Files are moved into the selected output folder. By default, this is `Organized_
 - **Include subfolders**: Also scan files inside subdirectories.
 - **Detect duplicates (SHA-256)**: When checked, identical files (matching content hash) are isolated into a `Duplicates` folder to keep your main categories clean.
 - **Group by Date (Year/Month)**: When checked, organizes files into hierarchical Year/Month subfolders (e.g., `Organized_Files/Images/2026/10/photo.jpg`) based on file timestamps.
+- **Ignore hidden/system files**: When checked (default), protects OS and metadata files like `desktop.ini`, `Thumbs.db`, `.DS_Store`, and dotfiles from being moved.
 - **Custom Category**: Add your own category name and extensions.
 
 Example:

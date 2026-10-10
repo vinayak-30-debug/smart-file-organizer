@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Callable
+import os
 from pathlib import Path
 import sys
 import threading
@@ -12,6 +13,7 @@ from organizer import (
     MoveResult,
     can_undo,
     organize_directory,
+    sanitize_category_name,
     scan_directory,
     undo_last_operation,
 )
@@ -48,6 +50,9 @@ class FileOrganizerApp(tk.Tk):
         )
         self.group_by_date_var = tk.BooleanVar(
             value=self.settings.get("group_by_date", False)
+        )
+        self.ignore_hidden_var = tk.BooleanVar(
+            value=self.settings.get("ignore_hidden", True)
         )
         self.category_var = tk.StringVar()
         self.extensions_var = tk.StringVar()
@@ -115,12 +120,20 @@ class FileOrganizerApp(tk.Tk):
         self.undo_button.grid(row=0, column=4, padx=(0, 8))
         self.action_buttons.append(self.undo_button)
 
+        open_folder_button = ttk.Button(
+            input_frame,
+            text="Open Folder",
+            command=self.open_output_folder,
+        )
+        open_folder_button.grid(row=0, column=5, padx=(0, 8))
+        self.action_buttons.append(open_folder_button)
+
         clear_button = ttk.Button(
             input_frame,
             text="Clear",
             command=self.clear_selection,
         )
-        clear_button.grid(row=0, column=5)
+        clear_button.grid(row=0, column=6)
         self.action_buttons.append(clear_button)
 
         options_frame = ttk.LabelFrame(self, text="Preferences")
@@ -132,34 +145,47 @@ class FileOrganizerApp(tk.Tk):
             column=0,
             sticky="w",
             padx=(10, 8),
-            pady=8,
+            pady=(8, 4),
         )
         ttk.Entry(options_frame, textvariable=self.output_folder_var).grid(
             row=0,
             column=1,
+            columnspan=4,
             sticky="ew",
-            pady=8,
+            padx=(0, 10),
+            pady=(8, 4),
         )
+
+        checks_frame = ttk.Frame(options_frame)
+        checks_frame.grid(row=1, column=0, columnspan=5, sticky="w", padx=10, pady=(2, 8))
+
         ttk.Checkbutton(
-            options_frame,
+            checks_frame,
             text="Include subfolders",
             variable=self.recursive_var,
             command=self.save_current_settings,
-        ).grid(row=0, column=2, padx=12, pady=8)
+        ).pack(side="left", padx=(0, 16))
 
         ttk.Checkbutton(
-            options_frame,
+            checks_frame,
             text="Detect duplicates (SHA-256)",
             variable=self.detect_duplicates_var,
             command=self.save_current_settings,
-        ).grid(row=0, column=3, padx=12, pady=8)
+        ).pack(side="left", padx=(0, 16))
 
         ttk.Checkbutton(
-            options_frame,
+            checks_frame,
             text="Group by Date (Year/Month)",
             variable=self.group_by_date_var,
             command=self.save_current_settings,
-        ).grid(row=0, column=4, padx=12, pady=8)
+        ).pack(side="left", padx=(0, 16))
+
+        ttk.Checkbutton(
+            checks_frame,
+            text="Ignore hidden/system files",
+            variable=self.ignore_hidden_var,
+            command=self.save_current_settings,
+        ).pack(side="left", padx=(0, 16))
 
         custom_frame = ttk.LabelFrame(self, text="Custom Category")
         custom_frame.grid(row=3, column=0, sticky="ew", padx=18, pady=8)
@@ -287,6 +313,7 @@ class FileOrganizerApp(tk.Tk):
                 self.recursive_var.get(),
                 detect_duplicates=self.detect_duplicates_var.get(),
                 group_by_date=self.group_by_date_var.get(),
+                ignore_hidden=self.ignore_hidden_var.get(),
             ),
             self.show_preview_results,
             "Scanning directory...",
@@ -320,6 +347,7 @@ class FileOrganizerApp(tk.Tk):
                 self.recursive_var.get(),
                 detect_duplicates=self.detect_duplicates_var.get(),
                 group_by_date=self.group_by_date_var.get(),
+                ignore_hidden=self.ignore_hidden_var.get(),
             ),
             self.show_organize_results,
             "Organizing files...",
@@ -337,7 +365,10 @@ class FileOrganizerApp(tk.Tk):
         dup_count = sum(1 for r in moved_files if r.is_duplicate)
         dup_text = f" (including {dup_count} duplicate(s) isolated)" if dup_count > 0 else ""
         self.status_var.set(f"Organized {len(moved_files)} file(s) successfully{dup_text}.")
-        messagebox.showinfo("Done", f"Organized {len(moved_files)} file(s){dup_text}.\nYou can click Undo to revert anytime.")
+        messagebox.showinfo(
+            "Done",
+            f"Organized {len(moved_files)} file(s){dup_text}.\n\nYou can click 'Open Folder' to view them or 'Undo' to revert anytime.",
+        )
 
     def undo_files(self) -> None:
         directory = self.directory_var.get().strip()
@@ -488,6 +519,33 @@ class FileOrganizerApp(tk.Tk):
             return "/".join(parts[-3:])
         return result.destination.name
 
+    def open_output_folder(self) -> None:
+        directory = self.directory_var.get().strip()
+        if not directory:
+            messagebox.showwarning("Directory Required", "Please choose a directory first.")
+            return
+
+        target_dir = Path(directory)
+        if not target_dir.exists():
+            messagebox.showerror("Error", f"Directory does not exist:\n{target_dir}")
+            return
+
+        output_name = self.output_folder_var.get().strip() or "Organized_Files"
+        organized_dir = target_dir / sanitize_category_name(output_name)
+        folder_to_open = organized_dir if organized_dir.exists() else target_dir
+
+        try:
+            if sys.platform == "win32":
+                os.startfile(str(folder_to_open))
+            elif sys.platform == "darwin":
+                import subprocess
+                subprocess.Popen(["open", str(folder_to_open)])
+            else:
+                import subprocess
+                subprocess.Popen(["xdg-open", str(folder_to_open)])
+        except Exception as error:
+            messagebox.showerror("Error", f"Could not open folder:\n{error}")
+
     def save_current_settings(self) -> None:
         save_settings(
             {
@@ -496,6 +554,7 @@ class FileOrganizerApp(tk.Tk):
                 "recursive": self.recursive_var.get(),
                 "detect_duplicates": self.detect_duplicates_var.get(),
                 "group_by_date": self.group_by_date_var.get(),
+                "ignore_hidden": self.ignore_hidden_var.get(),
                 "custom_categories": self.custom_categories,
             }
         )
